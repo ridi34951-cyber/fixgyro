@@ -19,15 +19,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Build APK
+      - name: Find Gradle project
+        id: project
+        shell: bash
         run: |
-          chmod +x gradlew
+          echo "Repository files:"
+          find . -maxdepth 4 -type f \
+            \( -name gradlew -o -name settings.gradle \
+            -o -name settings.gradle.kts \) -print
+
+          WRAPPER="$(find . -type f -name gradlew \
+            -not -path '*/.gradle/*' | head -n 1)"
+
+          if [ -z "$WRAPPER" ]; then
+            echo "ERROR: File gradlew tidak ditemukan."
+            echo "Pastikan upload proyek Android lengkap."
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$WRAPPER")"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          chmod +x "$WRAPPER"
+
+      - name: Build debug APK
+        run: |
+          cd "${{ steps.project.outputs.dir }}"
           ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
@@ -35,5 +57,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GyroLock-debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: "**/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
